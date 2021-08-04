@@ -1,4 +1,6 @@
-module github.com/linxGnu/goseaweedfs
+module github.com/ocean2811/goseaweedfs
+
+go 1.16
 
 require (
 	github.com/linxGnu/gumble v1.0.0

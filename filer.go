@@ -55,7 +55,7 @@ func (f *Filer) UploadFile(localFilePath, newPath, collection, ttl string) (resu
 	fp, err := NewFilePart(localFilePath)
 	if err == nil {
 		var data []byte
-		data, _, err = f.client.upload(encodeURI(*f.base, newPath, normalize(nil, collection, ttl)), localFilePath, fp.Reader, fp.MimeType)
+		data, _, err = f.client.upload(encodeURI(*f.base, newPath, normalize(nil, collection, ttl)), localFilePath, fp.Reader, fp.MimeType, nil)
 		if err == nil {
 			result = &FilerUploadResult{}
 			err = json.Unmarshal(data, result)
@@ -71,7 +71,7 @@ func (f *Filer) Upload(content io.Reader, fileSize int64, newPath, collection, t
 	fp := NewFilePartFromReader(ioutil.NopCloser(content), newPath, fileSize)
 
 	var data []byte
-	data, _, err = f.client.upload(encodeURI(*f.base, newPath, normalize(nil, collection, ttl)), newPath, ioutil.NopCloser(content), "")
+	data, _, err = f.client.upload(encodeURI(*f.base, newPath, normalize(nil, collection, ttl)), newPath, ioutil.NopCloser(content), "", nil)
 	if err == nil {
 		result = &FilerUploadResult{}
 		err = json.Unmarshal(data, result)

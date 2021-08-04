@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/textproto"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	workerpool "github.com/linxGnu/gumble/worker-pool"
@@ -84,6 +85,77 @@ func (c *httpClient) delete(url string) (statusCode int, err error) {
 	return
 }
 
+func (c *httpClient) preview(url string) (filename string, size int64, md map[string]string, err error) {
+	r, err := c.client.Head(url)
+	if err == nil {
+		if r.StatusCode != http.StatusOK {
+			drainAndClose(r.Body)
+			err = fmt.Errorf("Preview %s but error. Status:%s", url, r.Status)
+			return
+		}
+
+		contentDisposition := r.Header["Content-Disposition"]
+		if len(contentDisposition) > 0 {
+			if strings.HasPrefix(contentDisposition[0], "filename=") {
+				filename = contentDisposition[0][len("filename="):]
+				filename = strings.Trim(filename, "\"")
+			}
+		}
+
+		contentLength := r.Header["Content-Length"]
+		if len(contentLength) > 0 {
+			size, _ = strconv.ParseInt(contentLength[0], 10, 64)
+		}
+
+		md = make(map[string]string, len(r.Header))
+		for k, v := range r.Header {
+			if len(v) == 0 {
+				continue
+			}
+			md[k] = v[0]
+		}
+
+		// drain and close body
+		drainAndClose(r.Body)
+	}
+
+	return
+}
+
+func (c *httpClient) downloadWithMetadata(url string, callback func(io.Reader) error) (filename string, md map[string]string, err error) {
+	r, err := c.client.Get(url)
+	if err == nil {
+		if r.StatusCode != http.StatusOK {
+			drainAndClose(r.Body)
+			err = fmt.Errorf("Download %s but error. Status:%s", url, r.Status)
+			return
+		}
+
+		contentDisposition := r.Header["Content-Disposition"]
+		if len(contentDisposition) > 0 {
+			if strings.HasPrefix(contentDisposition[0], "filename=") {
+				filename = contentDisposition[0][len("filename="):]
+				filename = strings.Trim(filename, "\"")
+			}
+		}
+		md = make(map[string]string, len(r.Header))
+		for k, v := range r.Header {
+			if len(v) == 0 {
+				continue
+			}
+			md[k] = v[0]
+		}
+
+		// execute callback
+		err = callback(r.Body)
+
+		// drain and close body
+		drainAndClose(r.Body)
+	}
+
+	return
+}
+
 func (c *httpClient) download(url string, callback func(io.Reader) error) (filename string, err error) {
 	r, err := c.client.Get(url)
 	if err == nil {
@@ -111,7 +183,7 @@ func (c *httpClient) download(url string, callback func(io.Reader) error) (filen
 	return
 }
 
-func (c *httpClient) upload(url string, filename string, fileReader io.Reader, mtype string) (respBody []byte, statusCode int, err error) {
+func (c *httpClient) upload(url string, filename string, fileReader io.Reader, mtype string, extraMetadata map[string]string) (respBody []byte, statusCode int, err error) {
 	r, w := io.Pipe()
 
 	// create multipart writer
@@ -147,8 +219,19 @@ func (c *httpClient) upload(url string, filename string, fileReader io.Reader, m
 	})
 	c.workers.Do(task)
 
+	req, err := http.NewRequest("POST", url, r)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	if extraMetadata != nil {
+		for k, v := range extraMetadata {
+			req.Header.Set("Seaweed-"+k, v)
+		}
+	}
 	var resp *http.Response
-	resp, err = c.client.Post(url, mw.FormDataContentType(), r)
+	resp, err = c.client.Do(req)
 
 	// closing reader in case Posting error.
 	// This causes pipe writer fail to write and stop above task.

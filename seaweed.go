@@ -286,7 +286,7 @@ func (c *Seaweed) Submit(filePath string, collection, ttl string) (result *Submi
 
 // SubmitFilePart directly to master.
 func (c *Seaweed) SubmitFilePart(f *FilePart, args url.Values) (result *SubmitResult, err error) {
-	data, _, err := c.client.upload(encodeURI(*c.master, "/submit", args), f.FileName, f.Reader, f.MimeType)
+	data, _, err := c.client.upload(encodeURI(*c.master, "/submit", args), f.FileName, f.Reader, f.MimeType, nil)
 	if err == nil {
 		result = &SubmitResult{}
 		err = json.Unmarshal(data, result)
@@ -298,7 +298,7 @@ func (c *Seaweed) SubmitFilePart(f *FilePart, args url.Values) (result *SubmitRe
 func (c *Seaweed) Upload(fileReader io.Reader, fileName string, size int64, collection, ttl string) (fp *FilePart, err error) {
 	fp = NewFilePartFromReader(ioutil.NopCloser(fileReader), fileName, size)
 	fp.Collection, fp.TTL = collection, ttl
-	_, err = c.UploadFilePart(fp)
+	_, err = c.UploadFilePart(fp, nil)
 	return
 }
 
@@ -307,14 +307,14 @@ func (c *Seaweed) UploadFile(filePath string, collection, ttl string) (cm *Chunk
 	fp, err = NewFilePart(filePath)
 	if err == nil {
 		fp.Collection, fp.TTL = collection, ttl
-		cm, err = c.UploadFilePart(fp)
+		cm, err = c.UploadFilePart(fp, nil)
 		_ = fp.Close()
 	}
 	return
 }
 
 // UploadFilePart uploads a file part.
-func (c *Seaweed) UploadFilePart(f *FilePart) (cm *ChunkManifest, err error) {
+func (c *Seaweed) UploadFilePart(f *FilePart, extraMetadata map[string]string) (cm *ChunkManifest, err error) {
 	if f.FileID == "" {
 		var res *AssignResult
 		res, err = c.Assign(normalize(nil, f.Collection, f.TTL))
@@ -368,7 +368,7 @@ func (c *Seaweed) UploadFilePart(f *FilePart) (cm *ChunkManifest, err error) {
 		base := *c.master
 		base.Host = f.Server
 
-		_, _, err = c.client.upload(encodeURI(base, f.FileID, args), baseName, f.Reader, f.MimeType)
+		_, _, err = c.client.upload(encodeURI(base, f.FileID, args), baseName, f.Reader, f.MimeType, extraMetadata)
 	}
 
 	return
@@ -432,7 +432,7 @@ func (c *Seaweed) BatchUploadFileParts(files []*FilePart, collection string, ttl
 
 func (c *Seaweed) uploadTask(file *FilePart) *workerpool.Task {
 	return workerpool.NewTask(context.Background(), func(ctx context.Context) (res interface{}, err error) {
-		_, err = c.UploadFilePart(file)
+		_, err = c.UploadFilePart(file, nil)
 		return
 	})
 }
@@ -463,7 +463,7 @@ func (c *Seaweed) ReplaceFilePart(f *FilePart, deleteFirst bool) (err error) {
 		_ = c.DeleteFile(f.FileID, nil)
 	}
 
-	_, err = c.UploadFilePart(f)
+	_, err = c.UploadFilePart(f, nil)
 	return
 }
 
@@ -481,7 +481,7 @@ func (c *Seaweed) uploadChunk(f *FilePart, filename string) (assignResult *Assig
 		v, _, err = c.client.upload(
 			encodeURI(base, assignResult.FileID, nil),
 			filename, io.LimitReader(f.Reader, c.chunkSize),
-			"application/octet-stream")
+			"application/octet-stream", nil)
 		if err == nil {
 			// parsing response data
 			uploadResult := UploadResult{}
@@ -508,7 +508,7 @@ func (c *Seaweed) uploadManifest(f *FilePart, manifest *ChunkManifest) (err erro
 		base := *c.master
 		base.Host = f.Server
 
-		_, _, err = c.client.upload(encodeURI(base, f.FileID, args), manifest.Name, bufReader, "application/json")
+		_, _, err = c.client.upload(encodeURI(base, f.FileID, args), manifest.Name, bufReader, "application/json", nil)
 	}
 	return
 }
@@ -518,6 +518,22 @@ func (c *Seaweed) Download(fileID string, args url.Values, callback func(io.Read
 	fileURL, err := c.LookupFileID(fileID, args, true)
 	if err == nil {
 		fileName, err = c.client.download(fileURL, callback)
+	}
+	return
+}
+
+func (c *Seaweed) DownloadWithMetadata(fileID string, args url.Values, callback func(io.Reader) error) (fileName string, md map[string]string, err error) {
+	fileURL, err := c.LookupFileID(fileID, args, true)
+	if err == nil {
+		fileName, md, err = c.client.downloadWithMetadata(fileURL, callback)
+	}
+	return
+}
+
+func (c *Seaweed) Preview(fileID string, args url.Values) (fileName string, size int64, md map[string]string, err error) {
+	fileURL, err := c.LookupFileID(fileID, args, true)
+	if err == nil {
+		fileName, size, md, err = c.client.preview(fileURL)
 	}
 	return
 }
