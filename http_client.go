@@ -183,6 +183,29 @@ func (c *httpClient) download(url string, callback func(io.Reader) error) (filen
 	return
 }
 
+func (c *httpClient) downloadByReadCloser(url string) (filename string, rc io.ReadCloser, err error) {
+	r, err := c.client.Get(url)
+	if err == nil {
+		if r.StatusCode != http.StatusOK {
+			drainAndClose(r.Body)
+			err = fmt.Errorf("Download %s but error. Status:%s", url, r.Status)
+			return
+		}
+
+		contentDisposition := r.Header["Content-Disposition"]
+		if len(contentDisposition) > 0 {
+			if strings.HasPrefix(contentDisposition[0], "filename=") {
+				filename = contentDisposition[0][len("filename="):]
+				filename = strings.Trim(filename, "\"")
+			}
+		}
+
+		rc = r.Body
+	}
+
+	return
+}
+
 func (c *httpClient) upload(url string, filename string, fileReader io.Reader, mtype string, extraMetadata map[string]string) (respBody []byte, statusCode int, err error) {
 	r, w := io.Pipe()
 

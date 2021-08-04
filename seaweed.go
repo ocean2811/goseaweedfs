@@ -522,6 +522,14 @@ func (c *Seaweed) Download(fileID string, args url.Values, callback func(io.Read
 	return
 }
 
+func (c *Seaweed) DownloadByReadCloser(fileID string, args url.Values) (fileName string, rc io.ReadCloser, err error) {
+	fileURL, err := c.LookupFileID(fileID, args, true)
+	if err == nil {
+		fileName, rc, err = c.client.downloadByReadCloser(fileURL)
+	}
+	return
+}
+
 func (c *Seaweed) DownloadWithMetadata(fileID string, args url.Values, callback func(io.Reader) error) (fileName string, md map[string]string, err error) {
 	fileURL, err := c.LookupFileID(fileID, args, true)
 	if err == nil {
