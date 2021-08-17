@@ -96,8 +96,8 @@ func (c *httpClient) preview(url string) (filename string, size int64, md map[st
 
 		contentDisposition := r.Header["Content-Disposition"]
 		if len(contentDisposition) > 0 {
-			if strings.HasPrefix(contentDisposition[0], "filename=") {
-				filename = contentDisposition[0][len("filename="):]
+			if i := strings.Index(contentDisposition[0], "filename="); i >= 0 {
+				filename = contentDisposition[0][i+len("filename="):]
 				filename = strings.Trim(filename, "\"")
 			}
 		}
@@ -133,8 +133,8 @@ func (c *httpClient) downloadWithMetadata(url string, callback func(io.Reader) e
 
 		contentDisposition := r.Header["Content-Disposition"]
 		if len(contentDisposition) > 0 {
-			if strings.HasPrefix(contentDisposition[0], "filename=") {
-				filename = contentDisposition[0][len("filename="):]
+			if i := strings.Index(contentDisposition[0], "filename="); i >= 0 {
+				filename = contentDisposition[0][i+len("filename="):]
 				filename = strings.Trim(filename, "\"")
 			}
 		}
@@ -167,8 +167,8 @@ func (c *httpClient) download(url string, callback func(io.Reader) error) (filen
 
 		contentDisposition := r.Header["Content-Disposition"]
 		if len(contentDisposition) > 0 {
-			if strings.HasPrefix(contentDisposition[0], "filename=") {
-				filename = contentDisposition[0][len("filename="):]
+			if i := strings.Index(contentDisposition[0], "filename="); i >= 0 {
+				filename = contentDisposition[0][i+len("filename="):]
 				filename = strings.Trim(filename, "\"")
 			}
 		}
@@ -194,8 +194,8 @@ func (c *httpClient) downloadByReadCloser(url string) (filename string, size int
 
 		contentDisposition := r.Header["Content-Disposition"]
 		if len(contentDisposition) > 0 {
-			if strings.HasPrefix(contentDisposition[0], "filename=") {
-				filename = contentDisposition[0][len("filename="):]
+			if i := strings.Index(contentDisposition[0], "filename="); i >= 0 {
+				filename = contentDisposition[0][i+len("filename="):]
 				filename = strings.Trim(filename, "\"")
 			}
 		}
