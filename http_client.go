@@ -183,7 +183,7 @@ func (c *httpClient) download(url string, callback func(io.Reader) error) (filen
 	return
 }
 
-func (c *httpClient) downloadByReadCloser(url string) (filename string, rc io.ReadCloser, err error) {
+func (c *httpClient) downloadByReadCloser(url string) (filename string, size int64, md map[string]string, rc io.ReadCloser, err error) {
 	r, err := c.client.Get(url)
 	if err == nil {
 		if r.StatusCode != http.StatusOK {
@@ -198,6 +198,19 @@ func (c *httpClient) downloadByReadCloser(url string) (filename string, rc io.Re
 				filename = contentDisposition[0][len("filename="):]
 				filename = strings.Trim(filename, "\"")
 			}
+		}
+
+		contentLength := r.Header["Content-Length"]
+		if len(contentLength) > 0 {
+			size, _ = strconv.ParseInt(contentLength[0], 10, 64)
+		}
+
+		md = make(map[string]string, len(r.Header))
+		for k, v := range r.Header {
+			if len(v) == 0 {
+				continue
+			}
+			md[k] = v[0]
 		}
 
 		rc = r.Body
