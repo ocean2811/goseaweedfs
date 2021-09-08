@@ -91,6 +91,10 @@ func (c *httpClient) preview(url string) (filename string, size int64, md map[st
 		if r.StatusCode != http.StatusOK {
 			drainAndClose(r.Body)
 			err = fmt.Errorf("Preview %s but error. Status:%s", url, r.Status)
+
+			if r.StatusCode == http.StatusNotFound {
+				err = fmt.Errorf("%w: %v", ErrFileNotFound, err)
+			}
 			return
 		}
 
@@ -128,6 +132,10 @@ func (c *httpClient) downloadWithMetadata(url string, callback func(io.Reader) e
 		if r.StatusCode != http.StatusOK {
 			drainAndClose(r.Body)
 			err = fmt.Errorf("Download %s but error. Status:%s", url, r.Status)
+
+			if r.StatusCode == http.StatusNotFound {
+				err = fmt.Errorf("%w: %v", ErrFileNotFound, err)
+			}
 			return
 		}
 
@@ -162,6 +170,10 @@ func (c *httpClient) download(url string, callback func(io.Reader) error) (filen
 		if r.StatusCode != http.StatusOK {
 			drainAndClose(r.Body)
 			err = fmt.Errorf("Download %s but error. Status:%s", url, r.Status)
+
+			if r.StatusCode == http.StatusNotFound {
+				err = fmt.Errorf("%w: %v", ErrFileNotFound, err)
+			}
 			return
 		}
 
@@ -189,6 +201,10 @@ func (c *httpClient) downloadByReadCloser(url string) (filename string, size int
 		if r.StatusCode != http.StatusOK {
 			drainAndClose(r.Body)
 			err = fmt.Errorf("Download %s but error. Status:%s", url, r.Status)
+
+			if r.StatusCode == http.StatusNotFound {
+				err = fmt.Errorf("%w: %v", ErrFileNotFound, err)
+			}
 			return
 		}
 
@@ -261,10 +277,8 @@ func (c *httpClient) upload(url string, filename string, fileReader io.Reader, m
 	}
 
 	req.Header.Set("Content-Type", mw.FormDataContentType())
-	if extraMetadata != nil {
-		for k, v := range extraMetadata {
-			req.Header.Set("Seaweed-"+k, v)
-		}
+	for k, v := range extraMetadata {
+		req.Header.Set("Seaweed-"+k, v)
 	}
 	var resp *http.Response
 	resp, err = c.client.Do(req)
