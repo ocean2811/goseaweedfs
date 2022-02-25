@@ -235,6 +235,57 @@ func (c *httpClient) downloadByReadCloser(url string) (filename string, size int
 	return
 }
 
+func (c *httpClient) downloadByReadCloserWithHTTPRange(url string, ranges string) (filename string, size int64, md map[string]string, rc io.ReadCloser, err error) {
+
+	r, err := func() (*http.Response, error) {
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		if len(ranges) > 0 {
+			req.Header.Set("Range", ranges)
+		}
+		return c.client.Do(req)
+	}()
+
+	if err == nil {
+		if r.StatusCode != http.StatusOK {
+			drainAndClose(r.Body)
+			err = fmt.Errorf("Download %s but error. Status:%s", url, r.Status)
+
+			if r.StatusCode == http.StatusNotFound {
+				err = fmt.Errorf("%w: %v", ErrFileNotFound, err)
+			}
+			return
+		}
+
+		contentDisposition := r.Header["Content-Disposition"]
+		if len(contentDisposition) > 0 {
+			if i := strings.Index(contentDisposition[0], "filename="); i >= 0 {
+				filename = contentDisposition[0][i+len("filename="):]
+				filename = strings.Trim(filename, "\"")
+			}
+		}
+
+		contentLength := r.Header["Content-Length"]
+		if len(contentLength) > 0 {
+			size, _ = strconv.ParseInt(contentLength[0], 10, 64)
+		}
+
+		md = make(map[string]string, len(r.Header))
+		for k, v := range r.Header {
+			if len(v) == 0 {
+				continue
+			}
+			md[k] = v[0]
+		}
+
+		rc = r.Body
+	}
+
+	return
+}
+
 func (c *httpClient) upload(url string, filename string, fileReader io.Reader, mtype string, extraMetadata map[string]string) (respBody []byte, statusCode int, err error) {
 	r, w := io.Pipe()
 
