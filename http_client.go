@@ -195,6 +195,55 @@ func (c *httpClient) download(url string, callback func(io.Reader) error) (filen
 	return
 }
 
+func (c *httpClient) downloadByReadCloserWithHeader(url string, rqHeader http.Header) (filename string, size int64, rsHeader http.Header, rsBody io.ReadCloser, err error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return filename, size, rsHeader, rsBody, err
+	}
+	for k, vs := range rqHeader {
+		if len(req.Header.Get(k)) == 0 {
+			for _, v := range vs {
+				req.Header.Add(k, v)
+			}
+		}
+	}
+
+	rs, err := c.client.Do(req)
+	if err != nil {
+		return filename, size, rsHeader, rsBody, err
+	}
+
+	if err == nil {
+		if rs.StatusCode != http.StatusOK && rs.StatusCode != http.StatusPartialContent {
+			drainAndClose(rs.Body)
+			err = fmt.Errorf("Download %s but error. Status:%s", url, rs.Status)
+
+			if rs.StatusCode == http.StatusNotFound {
+				err = fmt.Errorf("%w: %v", ErrFileNotFound, err)
+			}
+			return
+		}
+
+		contentDisposition := rs.Header["Content-Disposition"]
+		if len(contentDisposition) > 0 {
+			if i := strings.Index(contentDisposition[0], "filename="); i >= 0 {
+				filename = contentDisposition[0][i+len("filename="):]
+				filename = strings.Trim(filename, "\"")
+			}
+		}
+
+		contentLength := rs.Header["Content-Length"]
+		if len(contentLength) > 0 {
+			size, _ = strconv.ParseInt(contentLength[0], 10, 64)
+		}
+
+		rsHeader = rs.Header
+		rsBody = rs.Body
+	}
+
+	return
+}
+
 func (c *httpClient) downloadByReadCloser(url string) (filename string, size int64, md map[string]string, rc io.ReadCloser, err error) {
 	r, err := c.client.Get(url)
 	if err == nil {

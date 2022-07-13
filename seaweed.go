@@ -530,6 +530,14 @@ func (c *Seaweed) DownloadByReadCloser(fileID string, args url.Values) (fileName
 	return
 }
 
+func (c *Seaweed) DownloadByReadCloserWithHeader(fileID string, rqHeader http.Header) (fileName string, size int64, rsHeader http.Header, rsBody io.ReadCloser, err error) {
+	fileURL, err := c.LookupFileID(fileID, nil, true)
+	if err == nil {
+		fileName, size, rsHeader, rsBody, err = c.client.downloadByReadCloserWithHeader(fileURL, rqHeader)
+	}
+	return
+}
+
 func (c *Seaweed) DownloadByReadCloserWithHTTPRanges(fileID string, args url.Values, ranges string) (fileName string, size int64, md map[string]string, rc io.ReadCloser, err error) {
 	fileURL, err := c.LookupFileID(fileID, args, true)
 	if err == nil {
